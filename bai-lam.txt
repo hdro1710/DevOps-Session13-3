@@ -1,0 +1,39 @@
+1. File docker-compose.yml — Node Exporter
+Đoạn service Node Exporter với các volume để thu thập metrics của host:
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+
+    pid: host
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host/root"
+      - "--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($$|/)"
+
+    networks:
+      - monitoring
+
+
+
+Lưu ý: Đây là đoạn service cần ghép vào file Compose hiện có, không phải toàn bộ file độc lập. Service sử dụng mạng Docker monitoring đã tồn tại và không công khai cổng 9100 ra host.
+2. Block job_name: 'node' trong prometheus.yml
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+
+
+Giải thích ngắn gọn:
+- /proc và /sys: cung cấp dữ liệu tiến trình, CPU, bộ nhớ và thông tin hệ thống.
+- /:/host/root:ro,rslave: cho phép Node Exporter đọc filesystem của host ở chế độ chỉ đọc.
+- pid: host: sử dụng PID namespace của host.
+- node-exporter:9100: địa chỉ Prometheus dùng để scrape metrics qua mạng Docker nội bộ.
+Kết quả xác minh trên AWS VPS: cả ba target prometheus, dummy-backend và node đều đã ở trạng thái UP.
